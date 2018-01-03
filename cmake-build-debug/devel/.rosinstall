@@ -1,0 +1,2 @@
+- setup-file:
+    local-name: /home/zhaoxin/Code/catkin_gmm_multirrt/src/motion_planners/cmake-build-debug/devel/setup.sh
