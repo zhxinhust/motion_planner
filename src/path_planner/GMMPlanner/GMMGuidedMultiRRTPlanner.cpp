@@ -108,6 +108,9 @@ void GMMGuidedMultiRRTPlanner::Init(VectorXd str, VectorXd goal)
     disMat.resize(GMM.CSpaceGmm->nstates, GMM.CSpaceGmm->nstates);
 
     vexNum = GMM.CSpaceGmm->nstates;
+
+    threshold_sampling = 0.1;
+    threshold_greedy = 0.9;
 }
 
 PathSearch_result GMMGuidedMultiRRTPlanner::plan()

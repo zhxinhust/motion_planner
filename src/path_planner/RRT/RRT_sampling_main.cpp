@@ -134,6 +134,7 @@ int main(int argc, char **argv) {
             joint.header.stamp = ros::Time::now();
             pub.publish(joint);
 
+
             loop_rate.sleep();
         }
     }

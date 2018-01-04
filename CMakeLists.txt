@@ -180,6 +180,14 @@ add_executable(gmm_multi_rrt_plan src/path_planner/GMMPlanner/GMMMultiRRT_main.c
         src/path_planner/RRT/Planner.cpp
         src/path_planner/RRT/RRTPlanner.cpp
         )
+target_link_libraries(gmm_multi_rrt_plan ${catkin_LIBRARIES} ${Boost_LIBRARIES}
+        orocos-kdl dual_arm_robot_kin gmm_lib)
+
+add_executable(demonstration_sample src/demonstration/record_demonstration_trajectory.cpp)
+target_link_libraries(demonstration_sample ${catkin_LIBRARIES} ${Boost_LIBRARIES} )
+
+add_executable(replay_demonstration src/demonstration/replay_demonstration.cpp)
+target_link_libraries(replay_demonstration ${catkin_LIBRARIES} ${Boost_LIBRARIES} dual_arm_robot_kin)
 
 
 ## Declare a C++ library

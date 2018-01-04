@@ -7,6 +7,21 @@
 
 #include "GMMGuidedPlanner.hpp"
 
+class MultiRRTTree
+{
+public:
+    MultiRRTTree() {}
+
+    std::vector<int> index; // 包含的中心数，如果两个RRT树相连了，则进行合并处理，这样一个树就包含有多个中心了
+    std::vector<Path_Node> pathNode_tree;    // 内部包含有树节点，每个节点上有距离、父节点和位置信息
+
+    bool isMerged;  // 此变量标志是否已经被合并，如果被合并了，则跳过这个结构的搜索
+
+    void merge(MultiRRTTree tree, int parentIndex, int childIndex);
+
+    int addSubTree(MultiRRTTree mergedTree, int newParentIndex, int currentIndex, bool *isAddedFlag);
+};
+
 class GMMGuidedMultiRRTPlanner:public GMMGuidedPlanner
 {
 public:
@@ -43,19 +58,6 @@ protected:
     std::vector<int> sampleIndexVector;
 };
 
-class MultiRRTTree
-{
-public:
-    MultiRRTTree() {}
 
-    std::vector<int> index; // 包含的中心数，如果两个RRT树相连了，则进行合并处理，这样一个树就包含有多个中心了
-    std::vector<Path_Node> pathNode_tree;    // 内部包含有树节点，每个节点上有距离、父节点和位置信息
-
-    bool isMerged;  // 此变量标志是否已经被合并，如果被合并了，则跳过这个结构的搜索
-
-    void merge(MultiRRTTree tree, int parentIndex, int childIndex);
-
-    int addSubTree(MultiRRTTree mergedTree, int newParentIndex, int currentIndex, bool *isAddedFlag);
-};
 
 #endif //MOTION_PLANNERS_GMMGUIDEDMULTIRRTPLANNER_HPP
