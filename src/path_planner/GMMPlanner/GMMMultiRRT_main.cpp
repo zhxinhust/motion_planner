@@ -46,10 +46,11 @@ int main(int argc, char **argv)
     jnt_init_right.data << -1.6963985602,-1.51016170183,2.20088481903,2.4503865242,0.125135153532,-2.35741907755;
     jnt_goal_init.data << -0.573445622121,-0.825817886983,1.48646306992,2.56893205643,-1.02050620714,-2.3579099814;
 
-    Frame strFrame = Frame(KDL::Rotation::Quaternion(-0.5, 0.5, -0.5, 0.5), Vector(0.15, -0.24, 1.046));
-    Frame goalFrame = Frame(KDL::Rotation::Quaternion(-0.5, 0.5, -0.5, 0.5), KDL::Vector(0.686, -0.24, 1.286));
+//    Frame strFrame = Frame(KDL::Rotation::Quaternion(-0.5, 0.5, -0.5, 0.5), Vector(0.15, -0.24, 1.046));
+    Frame strFrame = Frame(KDL::Rotation::Quaternion(-0.5, 0.5, -0.5, 0.5), KDL::Vector(0.686, 0, 1.286));
+    Frame goalFrame = Frame(KDL::Rotation::Quaternion(-0.5, 0.5, -0.5, 0.5), KDL::Vector(0.686, -0.24, 0.986));
 
-    rob_kin.IK_analytical_right(jnt_init_right, strFrame, jnt_str_pos_right);
+    rob_kin.IK_analytical_right(jnt_goal_init, strFrame, jnt_str_pos_right);
     rob_kin.IK_analytical_right(jnt_goal_init, goalFrame, jnt_ik);
 
 //    rob_kin.IK_right(strFrame, jnt_str_pos_right, JntArray(6));
@@ -69,6 +70,22 @@ int main(int argc, char **argv)
     gmmMultirrtPlanner.constructRoadMap();
     // 进行规划
     PathSearch_result pathSearchResult = gmmMultirrtPlanner.plan();
+
+    for(int i = 0; i < gmmMultirrtPlanner.trees.size(); i++)
+    {
+        if(!gmmMultirrtPlanner.trees[i].isMerged)
+        {
+            for(int j = 0; j < gmmMultirrtPlanner.trees[i].pathNode_tree.size(); j++)
+            {
+                for(unsigned int k = 0; k < 6; k++)
+                {
+                    joint.position[k + 9] = gmmMultirrtPlanner.trees[i].pathNode_tree[j].vector[k];
+                }
+                joint.header.stamp = ros::Time::now();
+                pub.publish(joint);
+            }
+        }
+    }
 
     VectorXd str, goal, v_dis_temp, v_direct, v_temp;
     double s, ds = 0.015;

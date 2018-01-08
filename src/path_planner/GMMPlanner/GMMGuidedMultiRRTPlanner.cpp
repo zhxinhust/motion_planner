@@ -80,7 +80,7 @@ void GMMGuidedMultiRRTPlanner::Init(VectorXd str, VectorXd goal)
     _str = str;
     _goal = goal;
 
-    step = 0.05; // 碰撞检测的步长
+    step = 0.01; // 碰撞检测的步长
 
     // 关节采样范围
     randomRangeLow.resize(6);
@@ -109,8 +109,8 @@ void GMMGuidedMultiRRTPlanner::Init(VectorXd str, VectorXd goal)
 
     vexNum = GMM.CSpaceGmm->nstates;
 
-    threshold_sampling = 0.1;
-    threshold_greedy = 0.9;
+    threshold_sampling = 0.2;
+    threshold_greedy = 0.8;
 }
 
 PathSearch_result GMMGuidedMultiRRTPlanner::plan()
@@ -126,6 +126,8 @@ PathSearch_result GMMGuidedMultiRRTPlanner::plan()
     std::vector<VectorXd> startPath = planEndPath(getCenter(strGaussionIndex), _str);
     std::vector<VectorXd> goalPath = planEndPath(getCenter(goalGaussionIndex), _goal);
     path.clear();
+
+    std::cout << "start path size:" << startPath.size() << "goal path: " << goalPath.size() << std::endl;
 
     //第一步，先规划str到第strIndex中心点的路径，此路径采用标准的单向RRT算法
 //    pathSearchResult = singleRRTSearch(_str, strGaussionIndex, strTree);
@@ -185,11 +187,11 @@ PathSearch_result GMMGuidedMultiRRTPlanner::plan()
 
 
     std::vector<VectorXd>::iterator it;
-    if(resultE == extend_finish)
+    if(resultE == pathsearch_finish)
     {
         for(int i = 0; i < startPath.size(); i++)
         {
-            it = startPath.begin();
+            it = path.begin();
             path.insert(it, startPath[i]);
         }
 
@@ -212,7 +214,7 @@ PathSearch_result GMMGuidedMultiRRTPlanner::multiRRTExtend()
     double epsilon;
 
     ExtendTree_result extendResult = extend_start_fail, subExtandResult = extend_start_fail;
-    int sampleIndex1, sampleIndex2, sampleIndexTreeIndex;
+    int sampleIndex1, sampleIndex2, sampleIndexTreeIndex, sampleTreeIndex_1, sampleTreeIndex_2;
 
     int strTreeIndex, goalTreeIndex;
     int extendNum = 0;
@@ -221,6 +223,7 @@ PathSearch_result GMMGuidedMultiRRTPlanner::multiRRTExtend()
         epsilon = getrandom(0., 1.); // 生成随机数，根据随机数大小进行选择
         if(epsilon < threshold_sampling)
         {
+            std::cout << "random sampling" << std::endl;
             // 按照一定概率在空间中随机采样
             subExtandResult = extendBiRRT(strGaussionIndex, goalGaussionIndex, false);
             if(subExtandResult == extend_finish)
@@ -231,36 +234,32 @@ PathSearch_result GMMGuidedMultiRRTPlanner::multiRRTExtend()
             // 否则在GMM内部采样
             if(epsilon < threshold_greedy)
             {
+                std::cout << "greedy sampling" << std::endl;
                 // 采用greedy策略，直接找Tree_i中离goal最近的高斯G_i与下一个高斯G_{i+1}进行RRT操作
                 sampleIndex1 = (int)random();
                 sampleIndex1 = sampleIndex1 % (int)sampleIndexVector.size();
-                sampleIndexTreeIndex = findGaussianIndexInTrees(sampleIndex1);
-                if(sampleIndexTreeIndex == goalTreeIndex)
+                sampleTreeIndex_1 = findGaussianIndexInTrees(sampleIndexVector[sampleIndex1]);
+                if(sampleTreeIndex_1 == goalTreeIndex)
                     continue;
 
                 sampleIndex2 = findGreedyIndex(sampleIndex1);
+                sampleTreeIndex_2 = findGaussianIndexInTrees(sampleIndex2);
 
-//                sampleIndexTreeIndex = findGaussianIndexInTrees(sampleIndex2);
-//                if(sampleIndexTreeIndex == goalTreeIndex)
-//                    continue;
             }
             else
             {
+                std::cout << "GMM sampling" << std::endl;
                 // 否则，在选择不在Tree_i中的其他G_k，进行G_i与G_i的双向RRT操作
                 sampleIndex1 = (int)random();
                 sampleIndex1 = sampleIndex1 % GMM.CSpaceGmm->nstates;
                 sampleIndex2 = (int)random();
                 sampleIndex2 = sampleIndex2 % GMM.CSpaceGmm->nstates;
-                sampleIndexTreeIndex = findGaussianIndexInTrees(sampleIndex1);
-                if(sampleIndexTreeIndex == goalTreeIndex)
-                    continue;
-
-                // 即使第二个点与终点已经合并在一个树上了，应该也可以进行规划的，只要不是第一个节点和终点在一个树上就行
-//                sampleIndexTreeIndex = findGaussianIndexInTrees(sampleIndex2);
-//                if(sampleIndexTreeIndex == goalTreeIndex)
-//                    continue;
+                sampleTreeIndex_1 = findGaussianIndexInTrees(sampleIndex1);
+                sampleTreeIndex_2 = findGaussianIndexInTrees(sampleIndex2);
             }
-            extendBiRRT(sampleIndex1, sampleIndex2, true);
+            if(sampleTreeIndex_1 == sampleTreeIndex_2)
+                continue;
+            extendBiRRT(sampleTreeIndex_1, sampleTreeIndex_2, true);
         }
 
         strTreeIndex = findGaussianIndexInTrees(strGaussionIndex);
@@ -268,6 +267,16 @@ PathSearch_result GMMGuidedMultiRRTPlanner::multiRRTExtend()
         if(strTreeIndex == goalTreeIndex)
             extendResult = extend_finish;
     }
+
+    int samplenum = 0;
+    for(int i = 0; i < trees.size(); i++)
+    {
+        if(!trees[i].isMerged)
+        {
+            samplenum += (int)trees[i].pathNode_tree.size();
+        }
+    }
+    std::cout << "total sample number is: " << samplenum << std::endl;
 
     return extendResult == extend_finish ? pathsearch_finish : pathsearch_fail;
 }
@@ -297,11 +306,20 @@ int GMMGuidedMultiRRTPlanner::findGreedyIndex(int currentGaussionIndex)
 
     // TODO: 这里存在问题
     // 否则找到下一个并与currentIndex不在同一个tree中的index
+
     int greedyTreeIndex;
-    do{
-        greedyGaussionIndex = sampleIndexVector[++sampleVectIndex];
+    for(int i = 0; i < sampleIndexVector.size(); i++)
+    {
+        greedyGaussionIndex = sampleIndexVector[i];
         greedyTreeIndex = findGaussianIndexInTrees(greedyGaussionIndex);
-    }while(greedyTreeIndex == currentTreeIndex);
+        if(greedyTreeIndex != currentTreeIndex)
+            break;
+    }
+
+//    do{
+//        greedyGaussionIndex = sampleIndexVector[++sampleVectIndex];
+//        greedyTreeIndex = findGaussianIndexInTrees(greedyGaussionIndex);
+//    }while(greedyTreeIndex == currentTreeIndex);
 
     return greedyTreeIndex;
 }
@@ -332,15 +350,16 @@ int GMMGuidedMultiRRTPlanner::findGaussianIndexInTrees(int gaussianIndex)
  * @param isInGmm : 标志位，如果为真，则在GMM内部生成随机点，否则随机生成
  * @return
  */
-ExtendTree_result GMMGuidedMultiRRTPlanner::extendBiRRT(int i, int k, bool isInGmm)
+ExtendTree_result GMMGuidedMultiRRTPlanner::extendBiRRT(int sample1, int sample2, bool isInGmm)
 {
+    std::cout << "extend trees:" << sample1 << " " << sample2 << std::endl;
     int randi = (int)random();
     randi = randi % 2;
 
-    int sampleIndex = (randi == 0) ? i : k;
+    int sampleIndex = (randi == 0) ? sample1 : sample2;
 
-    VectorXd strVector = getCenter(i);
-    VectorXd goalVector = getCenter(k);
+    VectorXd strVector = getCenter(sample1);
+    VectorXd goalVector = getCenter(sample2);
 
     // 创建一个保存连接树的向量
     VectorXd vector_out(6);
@@ -365,13 +384,13 @@ ExtendTree_result GMMGuidedMultiRRTPlanner::extendBiRRT(int i, int k, bool isInG
             for(int i = 0; i < 6; i++)
                 vector_random[i] = getrandom(randomRangeLow[i], randomRangeUp[i]);
         }
-        std::cout << "random vector" <<vector_random.transpose() << std::endl;
+//        std::cout << "random vector" <<vector_random.transpose() << std::endl;
         collision_flag = collisionCheckRight(vector_random);    // 判断此点是否存在碰撞， 如果碰撞，那么继续生成
     }while(collision_flag);
 
     VectorXd vector_temp_str(6), vector_temp_goal(6);
     // 尝试进行连接
-    connection_result = connectCSpaceRRT(trees[i].pathNode_tree, vector_random, vector_temp_str);
+    connection_result = connectCSpaceRRT(trees[sample1].pathNode_tree, vector_random, vector_temp_str);
     if(connection_result == connection_fail)
     {
 //        ROS_INFO("extend start tree failed");
@@ -381,7 +400,7 @@ ExtendTree_result GMMGuidedMultiRRTPlanner::extendBiRRT(int i, int k, bool isInG
         vector_temp_str = vector_random;    // 如果连接成功，则将最终连接的点设为这个随机点
 
 //    ROS_INFO("extend start tree success");
-    connection_result = connectCSpaceRRT(trees[k].pathNode_tree, vector_temp_str, vector_temp_goal);
+    connection_result = connectCSpaceRRT(trees[sample2].pathNode_tree, vector_temp_str, vector_temp_goal);
 
     ExtendTree_result extend_result;
 
@@ -395,32 +414,26 @@ ExtendTree_result GMMGuidedMultiRRTPlanner::extendBiRRT(int i, int k, bool isInG
 //        ROS_INFO("Path found");
         extend_result = extend_finish;  // 如果连接上了，则返回已经完成
 
-        if(trees[i].index[0] == strGaussionIndex)
+        if(trees[sample1].index[0] == strGaussionIndex)
         {
-            if(trees[k].index[0] == goalGaussionIndex)
+            if(trees[sample2].index[0] == goalGaussionIndex){
+                pathFinish(sample1, sample2); }
+
+            trees[sample1].merge(trees[sample2], (int)trees[sample1].pathNode_tree.size() - 1, (int)trees[sample2].pathNode_tree.size() - 1);
+        } else if(trees[sample1].index[0] == goalGaussionIndex)
+        {
+            if(trees[sample2].index[0] == strGaussionIndex)
             {
-                //TODO: 规划完成
-                pathFinish(i, k);
-                trees[i].merge(trees[k], (int)trees[i].pathNode_tree.size() - 1, (int)trees[k].pathNode_tree.size() - 1);
+                pathFinish(sample2, sample1);
+                trees[sample2].merge(trees[sample1], (int)trees[sample2].pathNode_tree.size() - 1, (int)trees[sample1].pathNode_tree.size() - 1);// 合并tree_i和tree_k
             }
             else{
-                trees[i].merge(trees[k], (int)trees[i].pathNode_tree.size() - 1, (int)trees[k].pathNode_tree.size() - 1);
-            }
-        } else if(trees[i].index[0] == goalGaussionIndex)
-        {
-            if(trees[k].index[0] == strGaussionIndex)
-            {
-                // TODO: 规划完成
-                pathFinish(k, i);
-                trees[k].merge(trees[i], (int)trees[k].pathNode_tree.size() - 1, (int)trees[i].pathNode_tree.size() - 1);// 合并tree_i和tree_k
-            }
-            else{
-                trees[i].merge(trees[k], (int)trees[i].pathNode_tree.size() - 1, (int)trees[k].pathNode_tree.size() - 1);
+                trees[sample1].merge(trees[sample2], (int)trees[sample1].pathNode_tree.size() - 1, (int)trees[sample2].pathNode_tree.size() - 1);
             }
         }
         else{
             // 这里面包含三种情况
-            trees[k].merge(trees[i], (int)trees[k].pathNode_tree.size() - 1, (int)trees[i].pathNode_tree.size() - 1);// 合并tree_i和tree_k
+            trees[sample2].merge(trees[sample1], (int)trees[sample2].pathNode_tree.size() - 1, (int)trees[sample1].pathNode_tree.size() - 1);// 合并tree_i和tree_k
         }
 
         // TODO: 输出当前树结构数据，方便查看，后面可以取消

@@ -827,8 +827,8 @@ std::vector<VectorXd> GMMGuidedPlanner::planEndPath(VectorXd str, VectorXd goal)
     // 如果中间无碰撞，则可以直接退出了
     if(connection_result == connection_success)
     {
-        path.push_back(_str);
-        path.push_back(_goal);
+        path.push_back(str);
+        path.push_back(goal);
 
         return path;
     }

@@ -68,7 +68,7 @@ void RRTPlanner::Init(VectorXd str, VectorXd goal)
     this->_str = str;
     this->_goal = goal;
 
-    step = 0.08; // 碰撞检测的步长
+    step = 0.01; // 碰撞检测的步长
 
     // 关节采样范围
     randomRangeLow.resize(6);
