@@ -17,7 +17,7 @@ public:
 
     bool isMerged;  // 此变量标志是否已经被合并，如果被合并了，则跳过这个结构的搜索
 
-    void merge(MultiRRTTree tree, int parentIndex, int childIndex);
+    void merge(MultiRRTTree &tree, int parentIndex, int childIndex);
 
     int addSubTree(MultiRRTTree mergedTree, int newParentIndex, int currentIndex, bool *isAddedFlag);
 };
@@ -41,6 +41,8 @@ public:
     int findGreedyIndex(int currentIndex);
 
     int findGaussianIndexInTrees(int gaussianIndex);
+
+    void pathFinish(int str, int goal);
 
     std::vector<MultiRRTTree> trees;
 

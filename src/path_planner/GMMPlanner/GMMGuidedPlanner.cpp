@@ -110,7 +110,7 @@ int myGmm::findNearestGaussian(VectorXd p)
 
 //    VectorXd dis = MahalanobisDis(p);
 
- //   std::cout << dis.transpose() << std::endl;
+    std::cout << dis.transpose() << std::endl;
     float dismin = 1000;
     int disminindex = 0;
 
@@ -809,6 +809,55 @@ ExtendTree_result GMMGuidedPlanner::extendCSpaceTreesRRTInGMM(std::vector<Path_N
     return extend_result;
 }
 
+std::vector<VectorXd> GMMGuidedPlanner::planEndPath(VectorXd str, VectorXd goal)
+{
+    tree_start.clear();
+    tree_goal.clear();
+    path.clear();
+
+    tree_start.push_back(Path_Node(str, 0, 0));
+    tree_goal.push_back(Path_Node(goal, 0, 0));
+
+    Path_Node pathnode_temp(6);    // 采样用的path node
+
+    // 创建一个保存连接树的向量
+    VectorXd vector_out(6);
+    Connection_result connection_result = connectCSpaceRRT(tree_start, goal, vector_out);
+
+    // 如果中间无碰撞，则可以直接退出了
+    if(connection_result == connection_success)
+    {
+        path.push_back(_str);
+        path.push_back(_goal);
+
+        return path;
+    }
+
+    int extendnum = 0;
+    ExtendTree_result extend_result = extend_start_fail;
+
+    // 一直扩展树，直到到达预定次数，或者规划成功
+    while(extendnum < MAXEXTENDTIMES && extend_result != extend_finish)
+    {
+        // 扩展树
+        extend_result = extendCSpaceTreesRRT(tree_start, tree_goal);
+        ROS_INFO("%d", extendnum);
+        extendnum++;
+    }
+
+//    // 如果到达了规定的次数还没有规划成功，则返回规划失败
+//    if(extendnum == MAXEXTENDTIMES)
+//        return path;
+
+    std::cout << "采样点总数为：" << tree_start.size() + tree_goal.size() << std::endl;
+
+    rearrangePath();
+
+    std::cout << "压缩路径点前数量为： " << path.size() << std::endl;
+
+    simplifyPath();
+    return path;
+}
 
 void update()
 {

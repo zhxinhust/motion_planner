@@ -939,8 +939,8 @@ Robot_Kinematics_Annalytical::Robot_Kinematics_Annalytical(KDL::Frame baseFrame_
  */
 Robot_Kinematics_Annalytical::Robot_Kinematics_Annalytical()
 {
-    baseFrame_left_ = KDL::Frame(KDL::Rotation::RPY(2.356194, 0, 3.1415926), KDL::Vector(0.0, 0.22314, 1.44586));
-    baseFrame_right_ = KDL::Frame(KDL::Rotation::RPY(2.356194, 0, 0), KDL::Vector(0.0, -0.22314, 1.44586));
+    baseFrame_left_ = KDL::Frame(KDL::Rotation::RPY(2.356194, 0, 3.1415926), KDL::Vector(0.0005, 0.22663, 1.53885));
+    baseFrame_right_ = KDL::Frame(KDL::Rotation::RPY(2.356194, 0, 0), KDL::Vector(0.0005, -0.22663, 1.53885));
     toolFrame_left_ = KDL::Frame();
     toolFrame_right_ = KDL::Frame();
 }

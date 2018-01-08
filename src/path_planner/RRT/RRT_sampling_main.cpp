@@ -51,27 +51,10 @@ int main(int argc, char **argv) {
     p_str.resize(6);
     p_goal.resize(6);
 
-    JntArray jnt_init_right(6), jnt_str_pos_right(6), jnt_str_pos_left(6), jnt_ik(6);
-    jnt_str_pos_left.data << -0.0706, -0.8472, -2.329, -0.8472, -3.8828, 0;
-    jnt_str_pos_right.data << 0.0706, -1.9767, 2.1179, -1.2707, -2.6827, 0;
-    jnt_init_right.data << -0.38453094036000035, -0.9826901809199997, 1.2805131641400003, -0.25635396023999935, 1.1963184811199996, 0.7263362206799995;
-
-    Frame strFrame = Frame(KDL::Rotation::Quaternion(-0.5, 0.5, -0.5, 0.5), Vector(0.15, -0.24, 1.046));
-    Frame goalFrame = Frame(KDL::Rotation::Quaternion(-0.5, 0.5, -0.5, 0.5), KDL::Vector(0.686, -0.24, 1.286));
-
-    rob_kin.IK_right(strFrame, jnt_str_pos_right, JntArray(6));
-    rob_kin.IK_right(goalFrame, jnt_ik, jnt_str_pos_right);
-
-//    for(int i = 0; i < 6; i++)
-//        joint.position[i + 9] = jnt_str_pos_right.data[i];
-//    joint.header.stamp = ros::Time::now();
-//    pub.publish(joint);
-//
-//    for(int i = 0; i < 6; i++)
-//        joint.position[i + 9] = jnt_ik.data[i];
-//    joint.header.stamp = ros::Time::now();
-//    pub.publish(joint);
-
+    JntArray str_jnt(6), goal_jnt(6);
+    str_jnt.data << -1.69642, -1.51015,  2.20146, 2.45029, 0.125622, -2.35619;
+    goal_jnt.data <<-0.448798, -0.688315,   1.43194,   2.39796,    -1.122,  -2.35619;
+    
     Robot_moveit robotMoveit;
     robot_state::RobotState &check_collision_state = robotMoveit.planning_scene->getCurrentStateNonConst();
 
@@ -79,7 +62,7 @@ int main(int argc, char **argv) {
     RRTPlanner rrtPlanner(check_collision_state, robotMoveit);
 
     // 初始化RRT规划器
-    rrtPlanner.Init(jnt_str_pos_right.data, jnt_ik.data);
+    rrtPlanner.Init(str_jnt.data, goal_jnt.data);
 
     // 进行规划
     rrtPlanner.plan();

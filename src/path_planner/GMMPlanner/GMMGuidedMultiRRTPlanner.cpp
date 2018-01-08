@@ -4,7 +4,7 @@
 
 #include "GMMGuidedMultiRRTPlanner.hpp"
 
-void MultiRRTTree::merge(MultiRRTTree mergedTree, int newParentIndex, int oldIndex)
+void MultiRRTTree::merge(MultiRRTTree &mergedTree, int newParentIndex, int oldIndex)
 {
     // 先将树编号添加进来
     for(int i = 0; i < mergedTree.index.size(); i++)
@@ -120,20 +120,43 @@ PathSearch_result GMMGuidedMultiRRTPlanner::plan()
     goalGaussionIndex = findNearestGaussian(_goal);
 
     PathSearch_result pathSearchResult;
+//
+//    std::vector<Path_Node> strTree, goalTree;
 
-    std::vector<Path_Node> strTree, goalTree;
+    std::vector<VectorXd> startPath = planEndPath(getCenter(strGaussionIndex), _str);
+    std::vector<VectorXd> goalPath = planEndPath(getCenter(goalGaussionIndex), _goal);
+    path.clear();
+
     //第一步，先规划str到第strIndex中心点的路径，此路径采用标准的单向RRT算法
-    pathSearchResult = singleRRTSearch(_str, strGaussionIndex, strTree);
-    if(pathSearchResult == pathsearch_fail)
-        return pathsearch_fail;
+//    pathSearchResult = singleRRTSearch(_str, strGaussionIndex, strTree);
+//    if(pathSearchResult == pathsearch_fail)
+//        return pathsearch_fail;
+//
+//    std::vector<VectorXd> plannedPathStr;
+//    //将第一段路径添加到已规划好的路径中
+//    std::vector<VectorXd>::iterator it;
+//    int insertIndex = (int)strTree.size() - 1;
+//    while(insertIndex != 0)
+//    {
+//        it = plannedPathStr.begin();
+//        plannedPathStr.insert(it, strTree[insertIndex].vector);
+//        insertIndex = strTree[insertIndex].parent;
+//    }
+//    it = plannedPathStr.begin();
+//    plannedPathStr.insert(it, strTree[0].vector);
+//    path.clear();
+//    path = plannedPathStr;
+//    simplifyPath();
+//    plannedPathStr = path;
 
-    trees[strGaussionIndex].pathNode_tree = tree_start;
+
+//    trees[strGaussionIndex].pathNode_tree = tree_start;
 
     // 第二步，从目标点规划到最近
-    pathSearchResult = singleRRTSearch(_goal, goalGaussionIndex, goalTree);
-    if(pathSearchResult == pathsearch_fail)
-        return pathsearch_fail;
-    trees[goalGaussionIndex].pathNode_tree = goalTree;
+//    pathSearchResult = singleRRTSearch(_goal, goalGaussionIndex, goalTree);
+//    if(pathSearchResult == pathsearch_fail)
+//        return pathsearch_fail;
+//    trees[goalGaussionIndex].pathNode_tree = goalTree;
 
     // 第三步，规划strIndex到goalIndex中心的路径，此部分采用双向RRT算法，并且在利用PRM规划出来的最优路径附近采样。
     preV = findPathDigkstra(strGaussionIndex);    // 找到最优的中心路径
@@ -142,14 +165,45 @@ PathSearch_result GMMGuidedMultiRRTPlanner::plan()
 
     sampleIndexVector.push_back(addvexIndex);
 
+    std::cout << "start gaussion index: " << strGaussionIndex << std::endl;
+    std::cout << "gual gaussion index: " << goalGaussionIndex << std::endl;
+
+
     while(addvexIndex != strGaussionIndex)
     {
         addvexIndex = preV[addvexIndex];
         sampleIndexVector.push_back(addvexIndex);
-        std::cout << "GMM states:" << addvexIndex <<std::endl;
+
     }
 
-    return multiRRTExtend();
+    std::cout << "GMM states: ";
+    for(int i = 0; i < sampleIndexVector.size(); i++)
+        std::cout << sampleIndexVector[i] << ", ";
+    std::cout << std::endl;
+
+    PathSearch_result resultE = multiRRTExtend();
+
+
+    std::vector<VectorXd>::iterator it;
+    if(resultE == extend_finish)
+    {
+        for(int i = 0; i < startPath.size(); i++)
+        {
+            it = startPath.begin();
+            path.insert(it, startPath[i]);
+        }
+
+        for(int i = 0; i < goalPath.size(); i++)
+        {
+            path.push_back(goalPath[i]);
+        }
+        simplifyPath();
+        return pathsearch_finish;
+    }
+    else{
+        return pathsearch_fail;
+    }
+
 }
 
 //std::vector<int> sampleIndexVector
@@ -157,18 +211,20 @@ PathSearch_result GMMGuidedMultiRRTPlanner::multiRRTExtend()
 {
     double epsilon;
 
-    ExtendTree_result extendResult = extend_start_fail;
+    ExtendTree_result extendResult = extend_start_fail, subExtandResult = extend_start_fail;
     int sampleIndex1, sampleIndex2, sampleIndexTreeIndex;
 
     int strTreeIndex, goalTreeIndex;
     int extendNum = 0;
-    while(extendResult == extend_start_fail && extendNum > 2000000)
+    while(extendResult == extend_start_fail && extendNum < 2000000)
     {
         epsilon = getrandom(0., 1.); // 生成随机数，根据随机数大小进行选择
         if(epsilon < threshold_sampling)
         {
             // 按照一定概率在空间中随机采样
-            extendResult = extendBiRRT(strGaussionIndex, goalGaussionIndex, false);
+            subExtandResult = extendBiRRT(strGaussionIndex, goalGaussionIndex, false);
+            if(subExtandResult == extend_finish)
+                extendResult = extend_finish;
         } else
         {
             goalTreeIndex = findGaussianIndexInTrees(goalGaussionIndex);
@@ -212,6 +268,7 @@ PathSearch_result GMMGuidedMultiRRTPlanner::multiRRTExtend()
         if(strTreeIndex == goalTreeIndex)
             extendResult = extend_finish;
     }
+
     return extendResult == extend_finish ? pathsearch_finish : pathsearch_fail;
 }
 
@@ -238,6 +295,7 @@ int GMMGuidedMultiRRTPlanner::findGreedyIndex(int currentGaussionIndex)
     if(goalTreeIndex == currentTreeIndex)
         return 2018;
 
+    // TODO: 这里存在问题
     // 否则找到下一个并与currentIndex不在同一个tree中的index
     int greedyTreeIndex;
     do{
@@ -298,6 +356,8 @@ ExtendTree_result GMMGuidedMultiRRTPlanner::extendBiRRT(int i, int k, bool isInG
         if(isInGmm)
         {
             // 如果在GMM内部规划，那么随机点利用GMM模型生成
+            std::cout << "sample state: " << sampleIndex << std::endl;
+            gaussian_draw(&(GMM.CSpaceGmm->c_gmm->gauss[sampleIndex]), randomArr);
             GMM.CSpaceGmm->Pdf(randomArr, sampleIndex);
             arr2vector(randomArr, vector_random);       // 转换到vector中
         } else{
@@ -305,7 +365,7 @@ ExtendTree_result GMMGuidedMultiRRTPlanner::extendBiRRT(int i, int k, bool isInG
             for(int i = 0; i < 6; i++)
                 vector_random[i] = getrandom(randomRangeLow[i], randomRangeUp[i]);
         }
-
+        std::cout << "random vector" <<vector_random.transpose() << std::endl;
         collision_flag = collisionCheckRight(vector_random);    // 判断此点是否存在碰撞， 如果碰撞，那么继续生成
     }while(collision_flag);
 
@@ -314,34 +374,108 @@ ExtendTree_result GMMGuidedMultiRRTPlanner::extendBiRRT(int i, int k, bool isInG
     connection_result = connectCSpaceRRT(trees[i].pathNode_tree, vector_random, vector_temp_str);
     if(connection_result == connection_fail)
     {
-        ROS_INFO("extend start tree failed");
+//        ROS_INFO("extend start tree failed");
         return extend_start_fail;
     } // 如果不能连接，则返回失败
     else if(connection_result == connection_success)
         vector_temp_str = vector_random;    // 如果连接成功，则将最终连接的点设为这个随机点
 
-    ROS_INFO("extend start tree success");
+//    ROS_INFO("extend start tree success");
     connection_result = connectCSpaceRRT(trees[k].pathNode_tree, vector_temp_str, vector_temp_goal);
 
     ExtendTree_result extend_result;
 
     if(connection_result == connection_fail)
     {
-        ROS_INFO("extend end fail");
+//        ROS_INFO("extend end fail");
         return extend_end_fail;
     }     // 如果连接不成功，则返回失败
     else if (connection_result == connection_success)
     {
-        ROS_INFO("Path found");
+//        ROS_INFO("Path found");
         extend_result = extend_finish;  // 如果连接上了，则返回已经完成
-        trees[i].merge(trees[k], (int)trees[i].pathNode_tree.size() - 1, (int)trees[k].pathNode_tree.size() - 1);   // 合并tree_i和tree_k
+
+        if(trees[i].index[0] == strGaussionIndex)
+        {
+            if(trees[k].index[0] == goalGaussionIndex)
+            {
+                //TODO: 规划完成
+                pathFinish(i, k);
+                trees[i].merge(trees[k], (int)trees[i].pathNode_tree.size() - 1, (int)trees[k].pathNode_tree.size() - 1);
+            }
+            else{
+                trees[i].merge(trees[k], (int)trees[i].pathNode_tree.size() - 1, (int)trees[k].pathNode_tree.size() - 1);
+            }
+        } else if(trees[i].index[0] == goalGaussionIndex)
+        {
+            if(trees[k].index[0] == strGaussionIndex)
+            {
+                // TODO: 规划完成
+                pathFinish(k, i);
+                trees[k].merge(trees[i], (int)trees[k].pathNode_tree.size() - 1, (int)trees[i].pathNode_tree.size() - 1);// 合并tree_i和tree_k
+            }
+            else{
+                trees[i].merge(trees[k], (int)trees[i].pathNode_tree.size() - 1, (int)trees[k].pathNode_tree.size() - 1);
+            }
+        }
+        else{
+            // 这里面包含三种情况
+            trees[k].merge(trees[i], (int)trees[k].pathNode_tree.size() - 1, (int)trees[i].pathNode_tree.size() - 1);// 合并tree_i和tree_k
+        }
+
+        // TODO: 输出当前树结构数据，方便查看，后面可以取消
+        for(int i = 0; i < trees.size(); i++)
+        {
+            if(!trees[i].isMerged)
+            {
+                std::cout << "第 " << i << "个树，包含节点：";
+                for(int j = 0; j < trees[i].index.size(); j++)
+                {
+                    std::cout << trees[i].index[j] << ", ";
+                }
+                std::cout << std::endl;
+            }
+        }
+        std::cout << std::endl << std::endl;
         vector_temp_goal = vector_temp_str;
     }
     else
     {
-        ROS_INFO("extend success");
+//        ROS_INFO("extend success");
         extend_result = extend_success;
     } // 如果连接上了一部分，则返回部分成功
 
     return extend_result;
+}
+
+void GMMGuidedMultiRRTPlanner::pathFinish(int str, int goal)
+{
+
+    // 先清除path
+    path.clear();
+
+    // 将规划的树重新排序到输出的变量rrt_path中去，并返回规划成功
+    std::vector<VectorXd>::iterator it;
+
+    int i = (int)trees[str].pathNode_tree.size() - 1;
+
+    // 将tree_start逆向排列
+    while(i != 0)
+    {
+        it = path.begin();
+        path.insert(it, trees[str].pathNode_tree[i].vector);
+        i = trees[str].pathNode_tree[i].parent;
+    }
+    it = path.begin();
+    path.insert(it, trees[str].pathNode_tree[0].vector);
+
+    // 逐个添加tree_goal上的节点
+    i = (int)trees[goal].pathNode_tree.size() - 1;
+
+    while(i !=0 )
+    {
+        path.push_back(trees[goal].pathNode_tree[i].vector);
+        i = trees[goal].pathNode_tree[i].parent;
+    }
+    path.push_back(trees[goal].pathNode_tree[0].vector);
 }

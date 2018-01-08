@@ -487,9 +487,10 @@ public :
         delete[](Priors);
         delete[](dataTemp);
     };
-  
+
+    struct gmm * c_gmm;
 private :
-  struct gmm * c_gmm;
+
   struct fgmm_reg * c_reg;
   float likelihood;
 

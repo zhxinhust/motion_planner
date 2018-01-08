@@ -89,6 +89,7 @@ protected:
     int edgeNum;    // 边的数量
     VectorXd getCenter(int i);
 
+    std::vector<VectorXd> planEndPath(VectorXd str, VectorXd goal);
     ExtendTree_result extendCSpaceTreesRRTInGMM(std::vector<Path_Node> &str_tree
             , std::vector<Path_Node> &goal_tree
             , std::vector<int> centers);
